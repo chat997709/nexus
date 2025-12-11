@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Nexus Play</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              nexus: {
+                cyan: '#00FFFF',
+                dark: '#1A1A1A',
+                card: '#282828',
+                nav: '#888888',
+              }
+            },
+            animation: {
+              'float': 'float 6s ease-in-out infinite',
+              'float-delayed': 'float 6s ease-in-out 3s infinite',
+              'spin-slow': 'spin 10s linear infinite',
+              'pulse-glow': 'pulseGlow 3s ease-in-out infinite',
+              'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'shimmer': 'shimmer 2s linear infinite',
+              'glitch': 'glitch 0.3s cubic-bezier(.25, .46, .45, .94) both infinite',
+              'scanline': 'scanline 8s linear infinite',
+              // Splash Screen Specific Animations
+              'splash-phase-1': 'splashZoom 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+              'splash-phase-2': 'splashText 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+              'splash-phase-3': 'splashPulse 0.5s ease-in-out 3', // Runs 3 times = 1.5s
+              'splash-phase-4': 'splashFadeOut 0.5s ease-out forwards',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0) rotateX(0deg) rotateZ(0deg)' },
+                '33%': { transform: 'translateY(-6px) rotateX(2deg) rotateZ(1deg)' },
+                '66%': { transform: 'translateY(4px) rotateX(-1deg) rotateZ(-1deg)' },
+              },
+              pulseGlow: {
+                '0%, 100%': { opacity: 0.6, boxShadow: '0 0 20px rgba(0, 255, 255, 0.3)' },
+                '50%': { opacity: 1, boxShadow: '0 0 40px rgba(0, 255, 255, 0.6)' },
+              },
+              fadeInUp: {
+                '0%': { opacity: 0, transform: 'translateY(30px) scale(0.95)' },
+                '100%': { opacity: 1, transform: 'translateY(0) scale(1)' },
+              },
+              shimmer: {
+                '0%': { transform: 'translateX(-200%) skewX(-15deg)' },
+                '100%': { transform: 'translateX(200%) skewX(-15deg)' }
+              },
+              glitch: {
+                '0%': { transform: 'translate(0)' },
+                '20%': { transform: 'translate(-2px, 2px)' },
+                '40%': { transform: 'translate(-2px, -2px)' },
+                '60%': { transform: 'translate(2px, 2px)' },
+                '80%': { transform: 'translate(2px, -2px)' },
+                '100%': { transform: 'translate(0)' }
+              },
+              scanline: {
+                '0%': { transform: 'translateY(-100%)' },
+                '100%': { transform: 'translateY(100%)' }
+              },
+              // Splash Keyframes
+              splashZoom: {
+                '0%': { transform: 'scale(0.5)', color: '#333333', filter: 'blur(5px)' },
+                '100%': { transform: 'scale(1.1)', color: '#00FFFF', filter: 'blur(0px)' },
+              },
+              splashText: {
+                '0%': { opacity: '0', transform: 'translateY(40px)', letterSpacing: '0px' },
+                '100%': { opacity: '1', transform: 'translateY(0)', letterSpacing: '6px' },
+              },
+              splashPulse: {
+                '0%, 100%': { opacity: '1' },
+                '50%': { opacity: '0.6' },
+              },
+              splashFadeOut: {
+                'from': { opacity: '1', transform: 'scale(1)' },
+                'to': { opacity: '0', transform: 'scale(1.1)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #f0f0f0; /* Light mode default */
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+      }
+      
+      .dark body {
+        background-color: #050505;
+      }
+      
+      canvas#backgroundCanvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+      }
+
+      /* Scrollbar utilities */
+      ::-webkit-scrollbar { width: 0px; background: transparent; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      /* 3D Utilities */
+      .preserve-3d { transform-style: preserve-3d; }
+      .perspective-container { perspective: 1000px; }
+      .backface-hidden { backface-visibility: hidden; }
+      
+      /* Enhanced Card 3D Effect */
+      .card-3d { 
+        transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.3s; 
+        transform-style: preserve-3d; 
+        will-change: transform;
+      }
+      .card-3d:hover { 
+        transform: translateY(-8px) rotateX(2deg) scale(1.02); 
+        box-shadow: 0 20px 40px -10px rgba(0, 255, 255, 0.15); 
+        z-index: 10;
+      }
+      .dark .card-3d:hover {
+        box-shadow: 0 20px 40px -10px rgba(0, 255, 255, 0.25);
+      }
+      
+      /* Glass Panel - Adaptive */
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        transition: background 0.3s, border-color 0.3s;
+      }
+
+      .dark .glass-panel {
+        background: rgba(15, 15, 20, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      }
+      
+      /* Text Glow Utility */
+      .text-glow { text-shadow: 0 0 10px rgba(0, 255, 255, 0.5); }
+      
+      /* CRT Scanline Effect */
+      .crt-overlay {
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        background-size: 100% 2px, 3px 100%;
+        pointer-events: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.1/",
+    "react": "https://esm.sh/react@^19.2.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.560.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "firebase/": "https://esm.sh/firebase@^12.6.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <canvas id="backgroundCanvas"></canvas>
+    <div id="root"></div>
+    <script>
+      /**
+       * PLEXUS NETWORK ANIMATION
+       * A 3D particle system with connecting lines and rotation.
+       */
+      const canvas = document.getElementById('backgroundCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      let width, height;
+      let particles = [];
+      const particleCount = 100; // Number of nodes
+      const connectionDistance = 150; // Max distance to draw line
+      const rotationSpeed = 0.002;
+      
+      let angleX = 0;
+      let angleY = 0;
+      
+      // Mouse interaction
+      let mouseX = 0;
+      let mouseY = 0;
+
+      class Particle {
+        constructor() {
+          this.reset();
+        }
+        
+        reset() {
+          // Initialize in a 3D volume centered at 0,0,0
+          const spread = Math.min(width, height) * 0.8;
+          this.x = (Math.random() - 0.5) * spread;
+          this.y = (Math.random() - 0.5) * spread;
+          this.z = (Math.random() - 0.5) * spread;
+          
+          this.vx = (Math.random() - 0.5) * 0.8;
+          this.vy = (Math.random() - 0.5) * 0.8;
+          this.vz = (Math.random() - 0.5) * 0.8;
+          
+          this.size = Math.random() * 2 + 1;
+          // Randomly assign a "type" (normal cyan or bright white accent)
+          this.isAccent = Math.random() > 0.9;
+        }
+        
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+          this.z += this.vz;
+          
+          // Soft boundaries - if it goes too far, push it back
+          const limit = Math.min(width, height) * 0.6;
+          
+          if (this.x > limit) this.vx -= 0.02;
+          if (this.x < -limit) this.vx += 0.02;
+          if (this.y > limit) this.vy -= 0.02;
+          if (this.y < -limit) this.vy += 0.02;
+          if (this.z > limit) this.vz -= 0.02;
+          if (this.z < -limit) this.vz += 0.02;
+        }
+      }
+
+      function init() {
+        resize();
+        window.addEventListener('resize', resize);
+        window.addEventListener('mousemove', (e) => {
+           mouseX = (e.clientX - width / 2) * 0.0001;
+           mouseY = (e.clientY - height / 2) * 0.0001;
+        });
+
+        for(let i = 0; i < particleCount; i++) {
+          particles.push(new Particle());
+        }
+        
+        animate();
+      }
+      
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+      }
+      
+      // 3D Rotation Matrix helper
+      function rotate(x, y, z, angX, angY) {
+         // Rotate around Y
+         let cosY = Math.cos(angY);
+         let sinY = Math.sin(angY);
+         let x1 = x * cosY - z * sinY;
+         let z1 = z * cosY + x * sinY;
+         
+         // Rotate around X
+         let cosX = Math.cos(angX);
+         let sinX = Math.sin(angX);
+         let y2 = y * cosX - z1 * sinX;
+         let z2 = z1 * cosX + y * sinX;
+         
+         return { x: x1, y: y2, z: z2 };
+      }
+
+      function animate() {
+        const isDark = document.documentElement.classList.contains('dark');
+        
+        // Background Clear
+        if (isDark) {
+             ctx.fillStyle = '#050505';
+             ctx.fillRect(0, 0, width, height);
+        } else {
+             // Light mode: Very light gray/blue
+             ctx.fillStyle = '#f0f4f8';
+             ctx.fillRect(0, 0, width, height);
+        }
+
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+
+        // Auto rotation + Mouse influence
+        angleY += rotationSpeed + mouseX;
+        angleX += rotationSpeed * 0.5 + mouseY;
+        
+        // Project points
+        const projectedPoints = particles.map(p => {
+            p.update();
+            const rotated = rotate(p.x, p.y, p.z, angleX, angleY);
+            
+            // Perspective Projection
+            // Focal length
+            const f = 400; 
+            // Z-shift to move camera back
+            const zDist = f + rotated.z + 500; 
+            const scale = f / zDist;
+            
+            return {
+                x: rotated.x * scale,
+                y: rotated.y * scale,
+                scale: scale,
+                z: rotated.z, // for sorting or opacity
+                pRef: p
+            };
+        });
+
+        // Sorting is strictly not necessary for lines but good for dots usually
+        // projectedPoints.sort((a, b) => b.z - a.z);
+
+        // Draw Connections
+        ctx.lineWidth = 1;
+        for (let i = 0; i < projectedPoints.length; i++) {
+            const p1 = projectedPoints[i];
+            
+            // Draw Point
+            const alpha = Math.min(1, Math.max(0, p1.scale)); // Fade if too close/behind
+            
+            // Colors
+            const cyan = '0, 255, 255';
+            const darkLine = '80, 80, 80';
+            
+            const colorBase = isDark ? cyan : '0, 100, 150';
+            
+            if (p1.z > -400) { // Don't draw if behind camera too much
+                ctx.beginPath();
+                ctx.arc(p1.x, p1.y, p1.pRef.size * p1.scale, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${p1.pRef.isAccent ? '255, 255, 255' : colorBase}, ${alpha * 0.8})`;
+                ctx.fill();
+            }
+
+            // Draw Lines
+            for (let j = i + 1; j < projectedPoints.length; j++) {
+                const p2 = projectedPoints[j];
+                
+                const dx = p1.x - p2.x;
+                const dy = p1.y - p2.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                // Check 3D distance for cleaner connections (optional, but 2D dist is often enough for visual effect)
+                // Using 2D dist here for the "constellation" look on screen
+                if (dist < connectionDistance * p1.scale) {
+                    const opacity = 1 - (dist / (connectionDistance * p1.scale));
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(${colorBase}, ${opacity * 0.3})`;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        ctx.restore();
+        requestAnimationFrame(animate);
+      }
+      
+      init();
+    </script>
+  </body>
+</html>

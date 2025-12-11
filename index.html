@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nexus Play</title>
+    <!-- Keeping Tailwind CDN for simplicity, though normally this would be an npm package too -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -162,12 +163,14 @@
   <script type="importmap">
 {
   "imports": {
+    "firebase/": "https://esm.sh/firebase@^12.6.0/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
     "react/": "https://esm.sh/react@^19.2.1/",
     "react": "https://esm.sh/react@^19.2.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
     "lucide-react": "https://esm.sh/lucide-react@^0.560.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "firebase/": "https://esm.sh/firebase@^12.6.0/"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.2.7"
   }
 }
 </script>
@@ -175,6 +178,8 @@
   <body>
     <canvas id="backgroundCanvas"></canvas>
     <div id="root"></div>
+    <!-- Vite Entry Point -->
+    <script type="module" src="/index.tsx"></script>
     <script>
       /**
        * PLEXUS NETWORK ANIMATION

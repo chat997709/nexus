@@ -75,6 +75,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       onLogin(mockUser, false);
   };
 
+  const handleResendConfirmation = async () => {
+    if (!email) return;
+    setLoading(true);
+    try {
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+        });
+        if (error) throw error;
+        window.alert(`Confirmation email sent to ${email}. Please check your inbox and spam folder.`);
+        setErrorState(null);
+    } catch (e: any) {
+        window.alert("Error sending confirmation: " + e.message);
+    } finally {
+        setLoading(false);
+    }
+  };
+
   const startGoogleFlow = async () => {
     setLoading(true);
     setErrorState(null);
@@ -147,9 +165,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                 if (data.session) {
                      setStep('PROFILE_SETUP');
                 } else if (data.user) {
+                     // Check if user is actually new or just existing trying to register
+                     if (data.user.identities && data.user.identities.length === 0) {
+                         throw new Error("This email is already registered. Please log in.");
+                     }
+                     
                      window.alert(`Registration successful! Please check your email (${email}) to confirm your account before logging in.`);
                      setIsRegistering(false); // Return to login state
-                     // Optional: setStep('LANDING'); 
                 }
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
@@ -171,11 +193,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     } catch (error: any) {
         console.error("Auth Error", error);
         let msg = error.message;
+        let title = "Login Failed";
+        let suggestion = undefined;
+        let code = error.code || 'auth_error';
         
+        // --- ERROR HANDLING LOGIC ---
+        
+        // 1. Rate Limiting ("security purposes")
+        if (msg.includes("security purposes") && msg.includes("seconds")) {
+            title = "Too Many Attempts";
+            const seconds = msg.match(/(\d+)/)?.[0] || "some";
+            msg = `Please wait ${seconds} seconds before trying again.`;
+            suggestion = "The server has temporarily blocked requests to prevent spam. Relax for a moment.";
+        } 
+        // 2. Invalid Credentials (Wrong password OR Unverified Email)
+        else if (msg.includes("Invalid login credentials")) {
+            title = "Access Denied";
+            msg = "Incorrect email or password.";
+            suggestion = "If you just registered, you MUST verify your email address before logging in.";
+            code = 'auth/invalid-credentials';
+        }
+        // 3. User already registered
+        else if (msg.includes("already registered")) {
+            title = "Account Exists";
+            suggestion = "Switch to the 'Log In' tab to access your account.";
+        }
+
         setErrorState({
-            code: error.code || 'auth_error',
-            title: "Login Failed",
-            message: msg
+            code: code,
+            title: title,
+            message: msg,
+            suggestion: suggestion
         });
     } finally {
         setLoading(false);
@@ -234,6 +282,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       if (!errorState) return null;
       
       const isConfigError = errorState.code === 'config/missing' || errorState.code === 'config/missing_secret';
+      const isLoginError = errorState.code === 'auth/invalid-credentials';
       
       return (
           <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -256,6 +305,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                   )}
 
                   <div className="flex flex-col gap-2">
+                      {isLoginError && (
+                          <button
+                            onClick={handleResendConfirmation}
+                            className="w-full py-3 rounded-xl bg-nexus-cyan/10 border border-nexus-cyan/30 hover:bg-nexus-cyan/20 text-nexus-cyan text-sm font-bold transition-colors mb-2"
+                          >
+                            Resend Confirmation Email
+                          </button>
+                      )}
+
                       <button 
                           onClick={() => window.open('https://app.supabase.com/', '_blank')}
                           className="w-full py-3 rounded-xl bg-nexus-card border border-white/10 hover:bg-white/5 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
@@ -263,13 +321,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                           <ExternalLink className="w-4 h-4" /> Open Supabase Console
                       </button>
                       
-                      {/* Bypass Option for Devs */}
-                      {isConfigError && (
+                      {/* Bypass Option for Devs OR stuck users */}
+                      {(isConfigError || isLoginError) && (
                           <button 
                               onClick={handleDevBypass}
-                              className="w-full py-3 rounded-xl bg-nexus-cyan/10 border border-nexus-cyan/30 hover:bg-nexus-cyan/20 text-nexus-cyan text-sm font-bold transition-colors mt-1"
+                              className="w-full py-3 rounded-xl bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 text-sm font-bold transition-colors mt-1"
                           >
-                              Simulate Success (Dev Bypass)
+                              Bypass Login (Dev Mode)
                           </button>
                       )}
 

@@ -17,9 +17,9 @@ import { LanguageProvider, useLanguage } from './components/LanguageContext';
 import { TabRoute, User, Game, Transaction } from './types';
 import { MOCK_GAMES } from './constants';
 import { UserManager } from './userManager';
-import { auth, isConfigured } from './firebaseConfig'; // Changed Import
-import { onAuthStateChanged } from 'firebase/auth'; // Firebase Auth
+import { auth, isConfigured } from './firebaseConfig'; 
 import { Sun, Moon, Globe } from 'lucide-react';
+import { App as CapacitorApp } from '@capacitor/app';
 
 const AppContent: React.FC = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -51,6 +51,21 @@ const AppContent: React.FC = () => {
     }
   }, [isDark]);
 
+  // Handle Hardware Back Button (Android)
+  useEffect(() => {
+    try {
+      CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+        if (!canGoBack) {
+          CapacitorApp.exitApp();
+        } else {
+          window.history.back();
+        }
+      });
+    } catch (e) {
+      // Ignore if not running in Capacitor/Android
+    }
+  }, []);
+
   // Auth Listener
   useEffect(() => {
     let mounted = true;
@@ -63,8 +78,8 @@ const AppContent: React.FC = () => {
 
     const initAuth = () => {
         if (isConfigured && auth) {
-            // Firebase Listener
-            const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            // Firebase Listener (v8 compat style)
+            const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
                 if (!mounted) return;
                 
                 if (firebaseUser) {
@@ -76,8 +91,7 @@ const AppContent: React.FC = () => {
                         setOnboardingStep(4);
                         setActiveTab('Profile');
                     } else {
-                        // User logged in but no profile data yet (e.g. freshly registered and waiting on AuthScreen)
-                        // AuthScreen handles the Profile Setup logic.
+                        // User logged in but no profile data yet
                     }
                 } else {
                     setFirebaseUid(null);
@@ -297,9 +311,9 @@ const AppContent: React.FC = () => {
 
         <div className="flex-1 flex flex-col relative h-full overflow-hidden">
             
-            {/* Mobile Status Bar */}
-            <div className="h-10 w-full flex md:hidden items-end justify-between px-6 pb-2 text-xs font-medium select-none z-50 bg-gradient-to-b from-white/80 dark:from-black/50 to-transparent absolute top-0 left-0 right-0 text-gray-800 dark:text-white transition-colors duration-300 pointer-events-none">
-              <span className="drop-shadow-md">9:41</span>
+            {/* Mobile Status Bar (Visual Only, real OS bar is above) */}
+            <div className="h-safe-top w-full flex md:hidden items-end justify-between px-6 pb-2 text-xs font-medium select-none z-50 bg-gradient-to-b from-white/80 dark:from-black/50 to-transparent absolute top-0 left-0 right-0 text-gray-800 dark:text-white transition-colors duration-300 pointer-events-none">
+              <span className="drop-shadow-md">Nexus OS</span>
               <div className="flex items-center gap-1.5 pointer-events-auto">
                  {/* Mobile Lang Toggle */}
                  <button onClick={toggleLanguage} className="mr-2 px-1.5 py-0.5 bg-black/20 dark:bg-white/20 rounded text-[9px] font-bold uppercase backdrop-blur-md">
@@ -380,7 +394,7 @@ const AppContent: React.FC = () => {
                       <div className="w-full h-full flex flex-col relative">
                         {activeTab === 'Store' && (
                             <StoreScreen 
-                                games={allGames} // Use the enriched games
+                                games={allGames} 
                                 userBalance={currentUser.stats.credits} 
                                 ownedGameIds={currentUser.ownedGameIds || []}
                                 onPurchase={handlePurchase} 
@@ -415,7 +429,7 @@ const AppContent: React.FC = () => {
             </NotificationProvider>
 
             {currentUser && onboardingStep === 4 && (
-                 <div className="block md:hidden z-50">
+                 <div className="block md:hidden z-50 pb-safe-bottom">
                     <Navigation activeTab={activeTab} onTabChange={setActiveTab} orientation="horizontal" />
                  </div>
             )}

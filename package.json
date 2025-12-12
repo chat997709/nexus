@@ -1,3 +1,4 @@
+
 {
   "name": "nexus-play",
   "private": true,
@@ -6,13 +7,17 @@
   "author": "Nexus Dev",
   "description": "Nexus Play Desktop Client",
   "type": "module",
+  "homepage": "./",
   "scripts": {
-    "prebuild": "node -e \"const fs=require('fs');const path=require('path');const dir=path.join(process.cwd(),'scripts');const script=path.join(dir,'ensure-language-context.cjs');const content=['import React, { createContext, useContext, useState, ReactNode } from \\'react\\';','import { translations, Language } from \\'../translations\\';','','interface LanguageContextType {','  language: Language;','  setLanguage: (lang: Language) => void;','  t: (key: keyof typeof translations[\\'en\\'], params?: Record<string, string | number>) => string;','}', '', 'const LanguageContext = createContext<LanguageContextType | undefined>(undefined);', '', 'export const useLanguage = () => {', '  const context = useContext(LanguageContext);', '  if (!context) {', '    throw new Error(\\'useLanguage must be used within a LanguageProvider\\');', '  }', '  return context;', '};', '', 'export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {', '  const [language, setLanguage] = useState<Language>(\\'ru\\');', '', '  const t = (key: keyof typeof translations[\\'en\\'], params?: Record<string, string | number>) => {', '    let text = translations[language][key] || translations[\\'en\\'][key] || key;', '', '    if (params) {', '      Object.entries(params).forEach(([paramKey, paramValue]) => {', '        text = text.replace(`{${paramKey}}`, String(paramValue));', '      });', '    }', '', '    return text;', '  };', '', '  return (', '    <LanguageContext.Provider value={{ language, setLanguage, t }}>', '      {children}', '    </LanguageContext.Provider>', '  );', '};'].join('\\\\n'); if(!fs.existsSync(dir)) fs.mkdirSync(dir,{recursive:true}); if(!fs.existsSync(script)) fs.writeFileSync(script, content, 'utf8'); require(script);\"",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on tcp:5173 && electron .\"",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:build": "npm run build && npx cap sync",
+    "clean": "rimraf dist dist-electron android node_modules"
   },
   "build": {
     "appId": "com.nexus.play",
@@ -29,6 +34,9 @@
     }
   },
   "dependencies": {
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/app": "^5.0.7",
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -36,6 +44,7 @@
     "firebase": "^10.8.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^5.7.0",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
@@ -44,6 +53,7 @@
     "electron": "^29.1.0",
     "electron-builder": "^24.13.3",
     "concurrently": "^8.2.2",
-    "wait-on": "^7.2.0"
+    "wait-on": "^7.2.0",
+    "rimraf": "^5.0.5"
   }
 }

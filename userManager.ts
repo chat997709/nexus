@@ -1,8 +1,6 @@
 
-import { db, isConfigured } from './firebaseConfig';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { db, auth, isConfigured } from './firebaseConfig';
 import { User } from './types';
-import { getAuth } from 'firebase/auth';
 
 // Helper for local storage mock
 const getLocalUser = (uid: string): User | null => {
@@ -23,15 +21,14 @@ const saveLocalUser = (uid: string, user: User) => {
 };
 
 export const UserManager = {
-  // --- Database Operations ---
+  // --- Database Operations (v8 compat) ---
 
   // Initialize a user document in Firestore 'users' collection or LocalStorage
   initializeUser: async (user: User, uid: string): Promise<void> => {
     if (isConfigured && db) {
         try {
-            const userRef = doc(db, 'users', uid);
-            // setDoc with merge:true works like upsert
-            await setDoc(userRef, {
+            // Using compat (v8) syntax: db.collection().doc().set()
+            await db.collection('users').doc(uid).set({
                 email: user.email,
                 name: user.name,
                 surname: user.surname,
@@ -59,10 +56,9 @@ export const UserManager = {
   getUserProfile: async (uid: string): Promise<User | null> => {
     if (isConfigured && db) {
         try {
-            const userRef = doc(db, 'users', uid);
-            const docSnap = await getDoc(userRef);
+            const docSnap = await db.collection('users').doc(uid).get();
 
-            if (docSnap.exists()) {
+            if (docSnap.exists) {
                 return docSnap.data() as User;
             } else {
                 return null;
@@ -80,8 +76,7 @@ export const UserManager = {
   updateUser: async (uid: string, data: Partial<User>): Promise<void> => {
     if (isConfigured && db) {
         try {
-             const userRef = doc(db, 'users', uid);
-             await updateDoc(userRef, data);
+             await db.collection('users').doc(uid).update(data);
         } catch (e) {
             console.error("Error updating user:", e);
             throw e;
@@ -95,8 +90,7 @@ export const UserManager = {
   },
 
   logout: async (): Promise<void> => {
-      if (isConfigured) {
-          const auth = getAuth();
+      if (isConfigured && auth) {
           await auth.signOut();
       }
   }

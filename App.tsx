@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { StoreScreen } from './components/StoreScreen';
@@ -12,15 +13,22 @@ import { SubscriptionScreen } from './components/SubscriptionScreen';
 import { SplashScreen } from './components/SplashScreen';
 import { Navigation } from './components/BottomTabs';
 import { NotificationProvider } from './components/NotificationSystem';
+import { LanguageProvider, useLanguage } from './components/LanguageContext';
 import { TabRoute, User, Game, Transaction } from './types';
+import { MOCK_GAMES } from './constants';
 import { UserManager } from './userManager';
-import { supabase, isConfigured } from './supabaseClient';
-import { Sun, Moon } from 'lucide-react';
+import { auth, isConfigured } from './firebaseConfig'; // Changed Import
+import { onAuthStateChanged } from 'firebase/auth'; // Firebase Auth
+import { Sun, Moon, Globe } from 'lucide-react';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { t, language, setLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabRoute>('Store');
   const [isLoading, setIsLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+  
+  // Game Data State (Populated by Splash Screen)
+  const [allGames, setAllGames] = useState<Game[]>(MOCK_GAMES);
   
   // Theme State
   const [isDark, setIsDark] = useState(true);
@@ -28,7 +36,7 @@ const App: React.FC = () => {
   // Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState<boolean>(false);
-  const [supabaseUid, setSupabaseUid] = useState<string | null>(null);
+  const [firebaseUid, setFirebaseUid] = useState<string | null>(null);
 
   // 0: Welcome, 1: Control Select, 2: Genre Select, 3: Subscription, 4: App Loaded
   const [onboardingStep, setOnboardingStep] = useState<number>(0);
@@ -43,62 +51,51 @@ const App: React.FC = () => {
     }
   }, [isDark]);
 
-  // Auth Listener (Hybrid: Supabase + Mock)
+  // Auth Listener
   useEffect(() => {
-    const initAuth = async () => {
-        if (isConfigured) {
-            try {
-                // Check active session immediately
-                const { data: { session }, error } = await supabase.auth.getSession();
+    let mounted = true;
+    const safetyTimeout = setTimeout(() => {
+        if (mounted && isLoading) {
+            console.warn("Auth initialization timed out, forcing UI load.");
+            setIsLoading(false);
+        }
+    }, 5000);
+
+    const initAuth = () => {
+        if (isConfigured && auth) {
+            // Firebase Listener
+            const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+                if (!mounted) return;
                 
-                if (error) throw error;
-
-                if (session?.user) {
-                    setSupabaseUid(session.user.id);
-                    const profile = await UserManager.getUserProfile(session.user.id);
+                if (firebaseUser) {
+                    setFirebaseUid(firebaseUser.uid);
+                    const profile = await UserManager.getUserProfile(firebaseUser.uid);
                     if (profile) {
                         setCurrentUser(profile);
                         setIsGuest(false);
                         setOnboardingStep(4);
                         setActiveTab('Profile');
-                    }
-                }
-            } catch (e) {
-                console.error("Supabase Init Error:", e);
-                // If init fails (e.g. invalid key), we stop loading and let user try to login manually
-                // which will show appropriate error messages in AuthScreen
-            } finally {
-                setIsLoading(false);
-            }
-
-            // Listen for changes
-            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-                if (session?.user) {
-                    setSupabaseUid(session.user.id);
-                    const profile = await UserManager.getUserProfile(session.user.id);
-                    if (profile) {
-                        setCurrentUser(profile);
-                        setIsGuest(false);
-                        setOnboardingStep(4);
-                        setActiveTab('Profile');
+                    } else {
+                        // User logged in but no profile data yet (e.g. freshly registered and waiting on AuthScreen)
+                        // AuthScreen handles the Profile Setup logic.
                     }
                 } else {
-                    setSupabaseUid(null);
+                    setFirebaseUid(null);
                     if (!isGuest) {
                         setCurrentUser(null);
                         setOnboardingStep(0);
                     }
                 }
+                setIsLoading(false);
             });
-
-            return () => subscription.unsubscribe();
+            return unsubscribe;
         } else {
-            // Mock Auth Logic
+            // Fallback for Mock / Offline
             const mockUid = localStorage.getItem('nexus_mock_uid');
             if (mockUid) {
-                setSupabaseUid(mockUid);
+                setFirebaseUid(mockUid);
                 UserManager.getUserProfile(mockUid).then(profile => {
-                    if (profile) {
+                    if (profile && mounted) {
                         setCurrentUser(profile);
                         setIsGuest(false);
                         setOnboardingStep(4);
@@ -106,14 +103,27 @@ const App: React.FC = () => {
                     }
                 });
             }
-            setIsLoading(false);
+            if (mounted) setIsLoading(false);
+            return () => {};
         }
     };
-
-    initAuth();
+    
+    const unsubscribe = initAuth();
+    
+    return () => {
+        mounted = false;
+        clearTimeout(safetyTimeout);
+        if(typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [isGuest]);
 
   const toggleTheme = () => setIsDark(!isDark);
+  const toggleLanguage = () => setLanguage(language === 'en' ? 'ru' : 'en');
+
+  const handleSplashComplete = (enrichedGames: Game[]) => {
+      setAllGames(enrichedGames);
+      setShowSplash(false);
+  };
 
   const handleLogin = (user: User, guestMode: boolean) => {
     setCurrentUser(user);
@@ -134,42 +144,38 @@ const App: React.FC = () => {
       setOnboardingStep(0);
       setActiveTab('Store');
     } else {
-      if (isConfigured) {
+      if (isConfigured && auth) {
           try {
-            await supabase.auth.signOut();
+            await auth.signOut();
           } catch (e) {
             console.error("Logout failed", e);
           }
       } else {
-          // Mock Logout
           localStorage.removeItem('nexus_mock_uid');
-          setSupabaseUid(null);
+          setFirebaseUid(null);
           setCurrentUser(null);
           setOnboardingStep(0);
       }
     }
   };
 
-  const handleControlSelection = (preference: 'Touch' | 'Gamepad' | 'Both') => {
-    setOnboardingStep(2);
+  // --- User Updates ---
+  const handleUpdateUser = (data: Partial<User>) => {
+      if (!currentUser) return;
+      
+      const updatedUser = { ...currentUser, ...data };
+      setCurrentUser(updatedUser);
+      
+      if (!isGuest && firebaseUid) {
+          UserManager.updateUser(firebaseUid, data);
+      }
   };
 
-  const handleGenreSelection = (genres: string[]) => {
-    setOnboardingStep(3);
-  };
-
-  const handleSubscriptionComplete = (plan: 'Free' | 'Plus' | 'Ultra') => {
-    setSubscriptionPlan(plan);
-    setOnboardingStep(4);
-    setActiveTab('Store');
-  };
-
-  // --- Purchase Logic ---
   const handlePurchase = (game: Game): { success: boolean; message: string; code: 'SUCCESS' | 'INSUFFICIENT_FUNDS' | 'ALREADY_OWNED' | 'ERROR' } => {
     if (!currentUser) return { success: false, message: 'User not logged in', code: 'ERROR' };
 
     if (currentUser.ownedGameIds && currentUser.ownedGameIds.includes(game.id)) {
-        return { success: false, message: 'You already own this game.', code: 'ALREADY_OWNED' };
+        return { success: false, message: t('error_owned_msg'), code: 'ALREADY_OWNED' };
     }
 
     const currentOwned = currentUser.ownedGameIds || [];
@@ -203,62 +209,80 @@ const App: React.FC = () => {
         };
     } else {
         const missing = (game.price - currentUser.stats.credits).toFixed(2);
-        return { success: false, message: `Insufficient funds. Missing $${missing}.`, code: 'INSUFFICIENT_FUNDS' };
+        return { success: false, message: `${t('error_funds_title')}. Missing $${missing}.`, code: 'INSUFFICIENT_FUNDS' };
     }
 
     if (updatedUser) {
         setCurrentUser(updatedUser);
-        if (!isGuest && supabaseUid) {
-            UserManager.updateUser(supabaseUid, {
+        if (!isGuest && firebaseUid) {
+            UserManager.updateUser(firebaseUid, {
                 ownedGameIds: updatedUser.ownedGameIds,
                 transactions: updatedUser.transactions,
                 stats: updatedUser.stats
             });
         }
-        return { success: true, message: game.isFree ? `${game.title} added!` : `Purchased!`, code: 'SUCCESS' };
+        return { success: true, message: game.isFree ? `${game.title} added!` : t('success_purchase_title'), code: 'SUCCESS' };
     }
 
     return { success: false, message: 'Error processing', code: 'ERROR' };
   };
 
-  // --- Wallet Logic ---
   const handleTopUp = (amount: number, bonusPercent: number) => {
     if (!currentUser) return;
-    
     const bonus = amount * (bonusPercent / 100);
     const total = amount + bonus;
-    
     const currentTransactions = currentUser.transactions || [];
     const newTransaction: Transaction = {
       id: Date.now().toString(),
       type: 'TOP_UP',
       amount: total,
       date: new Date().toISOString(),
-      description: 'Wallet Deposit'
+      description: t('tx_topup')
     };
-
     const updatedUser = {
       ...currentUser,
       transactions: [newTransaction, ...currentTransactions],
       stats: { ...currentUser.stats, credits: currentUser.stats.credits + total }
     };
-    
     setCurrentUser(updatedUser);
-    
-    if (!isGuest && supabaseUid) {
-        UserManager.updateUser(supabaseUid, {
+    if (!isGuest && firebaseUid) {
+        UserManager.updateUser(firebaseUid, {
             transactions: updatedUser.transactions,
             stats: updatedUser.stats
         });
     }
   };
 
+  const handleBonus = (amount: number) => {
+      if (!currentUser) return;
+      const currentTransactions = currentUser.transactions || [];
+      const newTransaction: Transaction = {
+          id: Date.now().toString(),
+          type: 'BONUS',
+          amount: amount,
+          date: new Date().toISOString(),
+          description: t('tx_bonus')
+      };
+      const updatedUser = {
+          ...currentUser,
+          transactions: [newTransaction, ...currentTransactions],
+          stats: { ...currentUser.stats, credits: currentUser.stats.credits + amount }
+      };
+      setCurrentUser(updatedUser);
+      if (!isGuest && firebaseUid) {
+          UserManager.updateUser(firebaseUid, {
+              transactions: updatedUser.transactions,
+              stats: updatedUser.stats
+          });
+      }
+  };
+
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   if (isLoading && !currentUser) {
-     return <div className="min-h-screen bg-nexus-dark flex items-center justify-center text-nexus-cyan font-mono animate-pulse">Initializing Neural Link...</div>; 
+     return <div className="min-h-screen bg-nexus-dark flex items-center justify-center text-nexus-cyan font-mono animate-pulse">{t('loading')}</div>; 
   }
 
   return (
@@ -273,10 +297,14 @@ const App: React.FC = () => {
 
         <div className="flex-1 flex flex-col relative h-full overflow-hidden">
             
-            {/* Status Bar */}
+            {/* Mobile Status Bar */}
             <div className="h-10 w-full flex md:hidden items-end justify-between px-6 pb-2 text-xs font-medium select-none z-50 bg-gradient-to-b from-white/80 dark:from-black/50 to-transparent absolute top-0 left-0 right-0 text-gray-800 dark:text-white transition-colors duration-300 pointer-events-none">
               <span className="drop-shadow-md">9:41</span>
               <div className="flex items-center gap-1.5 pointer-events-auto">
+                 {/* Mobile Lang Toggle */}
+                 <button onClick={toggleLanguage} className="mr-2 px-1.5 py-0.5 bg-black/20 dark:bg-white/20 rounded text-[9px] font-bold uppercase backdrop-blur-md">
+                    {language}
+                 </button>
                  <div className="flex gap-1.5 items-center">
                     <span className="h-2.5 w-2.5 rounded-full bg-gray-800/40 dark:bg-white/20"></span>
                     <span className="h-2.5 w-2.5 rounded-full bg-gray-800/40 dark:bg-white/20"></span>
@@ -293,6 +321,9 @@ const App: React.FC = () => {
                     NEXUS <span className="text-nexus-cyan">PLAY</span>
                 </div>
                 <div className="flex items-center gap-4">
+                     <button onClick={toggleLanguage} className="flex items-center gap-2 px-3 py-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-white/20 text-xs font-bold uppercase">
+                        <Globe className="w-4 h-4" /> {language === 'en' ? 'English' : 'Русский'}
+                     </button>
                      <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-white/20">
                         {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                      </button>
@@ -300,7 +331,7 @@ const App: React.FC = () => {
                          <div className="flex items-center gap-3 pl-4 border-l border-gray-300 dark:border-white/10">
                              <div className="text-right hidden lg:block">
                                  <div className="text-sm font-bold text-gray-900 dark:text-white">{currentUser.name}</div>
-                                 <div className="text-xs text-nexus-cyan font-mono">LVL 42</div>
+                                 <div className="text-xs text-nexus-cyan font-mono">{t('profile_lvl')} 42</div>
                              </div>
                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-nexus-cyan to-blue-600 p-[2px]">
                                  <img src={currentUser.avatar || `https://ui-avatars.com/api/?name=${currentUser.name}+${currentUser.surname}&background=0D8ABC&color=fff`} className="rounded-full w-full h-full object-cover" alt="Avatar" />
@@ -310,7 +341,7 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* Mobile Theme Toggle */}
+            {/* Mobile Theme Toggle (Floating) */}
             <div className="md:hidden absolute top-12 right-4 z-50">
                  <button onClick={toggleTheme} className="p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/10 shadow-lg text-white">
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -330,21 +361,26 @@ const App: React.FC = () => {
                     )}
                     
                     {onboardingStep === 1 && (
-                      <ControlSelectScreen onNext={handleControlSelection} />
+                      <ControlSelectScreen onNext={(pref) => setOnboardingStep(2)} />
                     )}
 
                     {onboardingStep === 2 && (
-                      <GenreSelectScreen onNext={handleGenreSelection} />
+                      <GenreSelectScreen onNext={(genres) => setOnboardingStep(3)} />
                     )}
 
                     {onboardingStep === 3 && (
-                      <SubscriptionScreen onComplete={handleSubscriptionComplete} />
+                      <SubscriptionScreen onComplete={(plan) => {
+                          setSubscriptionPlan(plan);
+                          setOnboardingStep(4);
+                          setActiveTab('Store');
+                      }} />
                     )}
 
                     {onboardingStep === 4 && (
                       <div className="w-full h-full flex flex-col relative">
                         {activeTab === 'Store' && (
                             <StoreScreen 
+                                games={allGames} // Use the enriched games
                                 userBalance={currentUser.stats.credits} 
                                 ownedGameIds={currentUser.ownedGameIds || []}
                                 onPurchase={handlePurchase} 
@@ -352,15 +388,25 @@ const App: React.FC = () => {
                             />
                         )}
                         {activeTab === 'Library' && <LibraryScreen />}
-                        {activeTab === 'Community' && <CommunityScreen />}
+                        {activeTab === 'Community' && <CommunityScreen user={currentUser} />}
                         {activeTab === 'Wallet' && (
                             <NexusWalletScreen 
                                 userBalance={currentUser.stats.credits} 
                                 transactions={currentUser.transactions || []}
-                                onTopUp={handleTopUp} 
+                                onTopUp={handleTopUp}
+                                onBonus={handleBonus} 
                             />
                         )}
-                        {activeTab === 'Profile' && <ProfileScreen user={currentUser} onLogout={handleLogout} />}
+                        {activeTab === 'Profile' && (
+                            <ProfileScreen 
+                                user={currentUser} 
+                                onLogout={handleLogout} 
+                                onUpdateUser={handleUpdateUser}
+                                isDark={isDark}
+                                toggleTheme={toggleTheme}
+                                toggleLanguage={toggleLanguage}
+                            />
+                        )}
                       </div>
                     )}
                   </>
@@ -378,5 +424,13 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const App: React.FC = () => {
+    return (
+        <LanguageProvider>
+            <AppContent />
+        </LanguageProvider>
+    )
+}
 
 export default App;

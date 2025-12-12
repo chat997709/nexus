@@ -1,0 +1,11 @@
+## Netlify configuration for the Vite React build
+[build]
+  command = "npm run build"
+  publish = "dist"
+  node_version = "20"
+
+## Redirect all routes to the SPA entry (safe even without a router)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

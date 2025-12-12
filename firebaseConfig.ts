@@ -1,9 +1,9 @@
+
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-export const vapidKey = "BJp_IwVgbsKJwxr7j3uTXJYkxPXktJei4FbrVVbgZtbjO277c9pqulD_ENFVkb7702eYm3-KHCJ62L5qanxwBz8";
-
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAtAxTcHVmmXwnJVlq7Di8hUYForsjmWO8",
   authDomain: "nexus-play-b4d89.firebaseapp.com",
@@ -14,23 +14,25 @@ const firebaseConfig = {
   measurementId: "G-54TXMDHCN3"
 };
 
-// Проверяем, настроил ли пользователь ключи (AIza...)
+// Проверяем, настроил ли пользователь ключи
 const isConfigured = firebaseConfig.apiKey.startsWith("AIza");
 
 let app = null;
-let auth = null;
-let db = null;
+let auth: any = null;
+let db: any = null;
+let googleProvider: any = null;
 
 if (isConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    googleProvider = new GoogleAuthProvider();
   } catch (e) {
     console.error("Firebase initialization failed:", e);
   }
 } else {
-  console.warn("Nexus Play: Valid Firebase API Key (starting with AIza) not found.");
+  console.warn("Nexus Play: Valid Firebase API Key not found.");
 }
 
-export { auth, db, isConfigured };
+export { auth, db, googleProvider, isConfigured };

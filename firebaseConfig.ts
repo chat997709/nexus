@@ -1,21 +1,26 @@
-
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
+// Pull Firebase config from env to avoid hard-coding secrets
 const firebaseConfig = {
-  apiKey: "AIzaSyAtAxTcHVmmXwnJVlq7Di8hUYForsjmWO8",
-  authDomain: "nexus-play-b4d89.firebaseapp.com",
-  projectId: "nexus-play-b4d89",
-  storageBucket: "nexus-play-b4d89.firebasestorage.app",
-  messagingSenderId: "588309940832",
-  appId: "1:588309940832:web:dfa1e5ef21bee9c2cad105",
-  measurementId: "G-54TXMDHCN3"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ""
 };
 
-// Проверяем, настроил ли пользователь ключи
-const isConfigured = firebaseConfig.apiKey.startsWith("AIza");
+const requiredFields = [
+  firebaseConfig.apiKey,
+  firebaseConfig.authDomain,
+  firebaseConfig.projectId,
+  firebaseConfig.appId,
+];
+
+const isConfigured = requiredFields.every(Boolean);
 
 let app = null;
 let auth: any = null;
@@ -32,7 +37,7 @@ if (isConfigured) {
     console.error("Firebase initialization failed:", e);
   }
 } else {
-  console.warn("Nexus Play: Valid Firebase API Key not found.");
+  console.warn("Nexus Play: Firebase config missing. Set VITE_FIREBASE_* env vars.");
 }
 
 export { auth, db, googleProvider, isConfigured };
